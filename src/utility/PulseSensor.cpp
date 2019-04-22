@@ -17,11 +17,11 @@
 
 /*
    Internal constants controlling the rate of fading for the FadePin.
-   
+
    FADE_SCALE = FadeLevel / FADE_SCALE is the corresponding PWM value.
    FADE_LEVEL_PER_SAMPLE = amount to decrease FadeLevel per sample.
    MAX_FADE_LEVEL = maximum FadeLevel value.
-   
+
    The time (milliseconds) to fade to black =
      (MAX_FADE_LEVEL / FADE_LEVEL_PER_SAMPLE) * sample time (2ms)
 */
@@ -52,11 +52,12 @@ PulseSensor::PulseSensor() {
   lastBeatTime = 0;
   P = 512;                    // peak at 1/2 the input range of 0..1023
   T = 512;                    // trough at 1/2 the input range.
-  thresh = 525;               // threshold a little above the trough
+  threshSetting = 550;        // used to seed and reset the thresh variable
+  thresh = 550;     // threshold a little above the trough
   amp = 100;                  // beat amplitude 1/10 of input range.
   firstBeat = true;           // looking for the first beat
   secondBeat = false;         // not yet looking for the second beat in a row
-  
+
   FadeLevel = 0; // LED is dark.
 }
 
@@ -72,6 +73,13 @@ void PulseSensor::fadeOnPulse(int fadePin) {
   FadePin = fadePin;
 }
 
+void PulseSensor::setThreshold(int threshold) {
+  DISABLE_PULSE_SENSOR_INTERRUPTS;
+  threshSetting = threshold;
+  thresh = threshold;
+  ENABLE_PULSE_SENSOR_INTERRUPTS;
+}
+
 int PulseSensor::getLatestSample() {
   return Signal;
 }
@@ -82,6 +90,14 @@ int PulseSensor::getBeatsPerMinute() {
 
 int PulseSensor::getInterBeatIntervalMs() {
   return IBI;
+}
+
+int PulseSensor::getPulseAmplitude() {
+  return amp;
+}
+
+unsigned long PulseSensor::getLastBeatTime() {
+  return lastBeatTime;
 }
 
 boolean PulseSensor::sawStartOfBeat() {
@@ -104,9 +120,12 @@ void PulseSensor::readNextSample() {
 }
 
 void PulseSensor::processLatestSample() {
+  // Serial.println(threshSetting);
+  // Serial.print('\t');
+  // Serial.println(thresh);
   sampleCounter += sampleIntervalMs;         // keep track of the time in mS with this variable
   int N = sampleCounter - lastBeatTime;      // monitor the time since the last beat to avoid noise
-  
+
   // Fade the Fading LED
   FadeLevel = FadeLevel - FADE_LEVEL_PER_SAMPLE;
   FadeLevel = constrain(FadeLevel, 0, MAX_FADE_LEVEL);
@@ -158,7 +177,6 @@ void PulseSensor::processLatestSample() {
       runningTotal /= 10;                     // average the last 10 IBI values
       BPM = 60000 / runningTotal;             // how many beats can fit into a minute? that's BPM!
       QS = true;                              // set Quantified Self flag (we detected a beat)
-      
       FadeLevel = MAX_FADE_LEVEL;             // If we're fading, re-light that LED.
     }
   }
@@ -172,12 +190,18 @@ void PulseSensor::processLatestSample() {
   }
 
   if (N > 2500) {                          // if 2.5 seconds go by without a beat
-    thresh = 512;                          // set thresh default
+    thresh = threshSetting;                // set thresh default
     P = 512;                               // set P default
     T = 512;                               // set T default
     lastBeatTime = sampleCounter;          // bring the lastBeatTime up to date
     firstBeat = true;                      // set these to avoid noise
     secondBeat = false;                    // when we get the heartbeat back
+    QS = false;
+    BPM = 0;
+    IBI = 600;                  // 600ms per beat = 100 Beats Per Minute (BPM)
+    Pulse = false;
+    amp = 100;                  // beat amplitude 1/10 of input range.
+
   }
 }
 
@@ -194,9 +218,13 @@ void PulseSensor::initializeLEDs() {
 
 void PulseSensor::updateLEDs() {
   if (BlinkPin >= 0) {
-    digitalWrite(BlinkPin, Pulse);
-  }
-  
+		if(Pulse){
+    	digitalWrite(BlinkPin, HIGH);
+  	}else{
+			digitalWrite(BlinkPin,LOW);
+		}
+	}
+
   if (FadePin >= 0) {
     analogWrite(FadePin, FadeLevel / FADE_SCALE);
   }

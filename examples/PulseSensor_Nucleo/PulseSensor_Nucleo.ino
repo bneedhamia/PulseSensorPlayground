@@ -3,7 +3,32 @@
    Typically used when you don't want to use interrupts
    to read PulseSensor voltages.
 
-   See https://www.pulsesensor.com to get started.
+   Here is a link to the tutorial that discusses this code
+   >> Comming Soon! <<
+
+   Use this code as a basic example when targeting STM32 boards. 
+   Open your Arduino > Preferences window, and add this to your Additional Boards Manager URLs:
+   
+https://raw.githubusercontent.com/stm32duino/BoardManagerFiles/master/STM32/package_stm_index.json
+
+   Then, go to Tools > Board > Boards Manager to install the STM32 core.
+   
+   This example targets the Nucleo 64 F401RE
+   If you are using a different Nucleo board, you may have to change some of the
+   board parameters. Here are the drop-down selections that I used.
+
+      Board: Nucleo-64
+      Board Part Number: Nucleo F401RE
+      Serial Interface: Enable first third (USART to 3 if available)
+      USB Interace: None
+      Upload Method: STlink
+      Optimize: Smallest (-Os defalut)
+
+  This sketch uses Serial1 to communicate with your computer.
+  Attach an FTDI or other USB > Serial breakout to the pins
+
+      tx: D8 (Arduino Pin)
+      rx: D2 (Arduino Pin)
 
    Copyright World Famous Electronics LLC - see LICENSE
    Contributors:
@@ -22,7 +47,7 @@
    define USE_ARDUINO_INTERRUPTS before including PulseSensorPlayground.h.
    Here, #define USE_ARDUINO_INTERRUPTS false tells the library to
    not use interrupts to read data from the PulseSensor.
-   
+
    If you want to use interrupts, simply change the line below
    to read:
      #define USE_ARDUINO_INTERRUPTS true
@@ -49,23 +74,24 @@
    Set this to SERIAL_PLOTTER if you're going to run
     the Arduino IDE's Serial Plotter.
 */
-const int OUTPUT_TYPE = PROCESSING_VISUALIZER;
+const int OUTPUT_TYPE = SERIAL_PLOTTER;
 
 /*
    Pinout:
-     PIN_INPUT = Analog Input. Connected to the pulse sensor
+     PULSE_INPUT = Analog Input. Connected to the pulse sensor
       purple (signal) wire.
-     PIN_BLINK = digital Output. Connected to an LED (and 220 ohm resistor)
+     PULSE_BLINK = digital Output. Connected to an LED (and 220 ohm resistor)
       that will flash on each detected pulse.
-     PIN_FADE = digital Output. PWM pin onnected to an LED (and resistor)
+     PULSE_FADE = digital Output. PWM pin onnected to an LED (and resistor)
       that will smoothly fade with each pulse.
-      NOTE: PIN_FADE must be a pin that supports PWM.
-       If USE_INTERRUPTS is true, Do not use pin 9 or 10 for PIN_FADE,
+      NOTE: PULSE_FADE must be a pin that supports PWM.
+       If USE_INTERRUPTS is true, Do not use pin 9 or 10 for PULSE_FADE,
        because those pins' PWM interferes with the sample timer.
 */
-const int PIN_INPUT = A0;
-const int PIN_BLINK = 13;    // Pin 13 is the on-board LED
-const int PIN_FADE = 5;
+const int PULSE_INPUT = A0;
+const int PULSE_BLINK = 13;    // Pin 13 is the on-board LED
+const int PULSE_FADE = 5;
+const int THRESHOLD = 550;   // Adjust this number to avoid noise when idle
 
 /*
    samplesUntilReport = the number of samples remaining to read
@@ -93,15 +119,16 @@ void setup() {
      of readSensor() calls, which would make the pulse measurement
      not work properly.
   */
-  Serial.begin(115200);
+  Serial1.begin(115200);
 
   // Configure the PulseSensor manager.
-  pulseSensor.analogInput(PIN_INPUT);
-  pulseSensor.blinkOnPulse(PIN_BLINK);
-  pulseSensor.fadeOnPulse(PIN_FADE);
-  
-  pulseSensor.setSerial(Serial);
+  pulseSensor.analogInput(PULSE_INPUT);
+  pulseSensor.blinkOnPulse(PULSE_BLINK);
+  pulseSensor.fadeOnPulse(PULSE_FADE);
+
+  pulseSensor.setSerial(Serial1);
   pulseSensor.setOutputType(OUTPUT_TYPE);
+  pulseSensor.setThreshold(THRESHOLD);
 
   // Skip the first SAMPLES_PER_SERIAL_SAMPLE in the loop().
   samplesUntilReport = SAMPLES_PER_SERIAL_SAMPLE;
@@ -117,9 +144,9 @@ void setup() {
     */
     for(;;) {
       // Flash the led to show things didn't work.
-      digitalWrite(PIN_BLINK, LOW);
+      digitalWrite(PULSE_BLINK, LOW);
       delay(50);
-      digitalWrite(PIN_BLINK, HIGH);
+      digitalWrite(PULSE_BLINK, HIGH);
       delay(50);
     }
   }

@@ -2,8 +2,12 @@
    Code to detect pulses from the PulseSensor,
    using an interrupt service routine.
 
-   See https://www.pulsesensor.com
-   
+   >>>>  THIS EXAMPLE OUTPUTS USES TONE COMMAND <<<<
+   >>>>  TO MAKE A SPEAKER BEEP WITH HEARTBEAT! <<<<
+
+   Here is a link to the tutorial
+   https://pulsesensor.com/pages/pulse-sensor-speaker-tutorial
+
    Copyright World Famous Electronics LLC - see LICENSE
    Contributors:
      Joel Murphy, https://pulsesensor.com
@@ -21,7 +25,7 @@
    define USE_ARDUINO_INTERRUPTS before including PulseSensorPlayground.h.
    Here, #define USE_ARDUINO_INTERRUPTS true tells the library to use
    interrupts to automatically read and process PulseSensor data.
-   
+
    See ProcessEverySample.ino for an example of not using interrupts.
 */
 #define USE_ARDUINO_INTERRUPTS true
@@ -37,27 +41,40 @@
    Set this to SERIAL_PLOTTER if you're going to run
     the Arduino IDE's Serial Plotter.
 */
-const int OUTPUT_TYPE = PROCESSING_VISUALIZER;
+const int OUTPUT_TYPE = SERIAL_PLOTTER;
 
 /*
    Pinout:
-     PIN_INPUT = Analog Input. Connected to the pulse sensor
+     PULSE_INPUT = Analog Input. Connected to the pulse sensor
       purple (signal) wire.
-     PIN_BLINK = digital Output. Connected to an LED (and 220 ohm resistor)
+     PULSE_BLINK = digital Output. Connected to an LED (and 220 ohm resistor)
       that will flash on each detected pulse.
-     PIN_FADE = digital Output. PWM pin onnected to an LED (and resistor)
+     PULSE_FADE = digital Output. PWM pin onnected to an LED (and resistor)
       that will smoothly fade with each pulse.
-      NOTE: PIN_FADE must be a pin that supports PWM. Do not use
+      NOTE: PULSE_FADE must be a pin that supports PWM. Do not use
       pin 9 or 10, because those pins' PWM interferes with the sample timer.
 */
-const int PIN_INPUT = A0;
-const int PIN_BLINK = 13;    // Pin 13 is the on-board LED
-const int PIN_FADE = 5;
+const int PULSE_INPUT = A0;
+const int PULSE_BLINK = 13;    // Pin 13 is the on-board LED
+const int PULSE_FADE = 5;
+const int THRESHOLD = 550;   // Adjust this number to avoid noise when idle
 
 /*
    All the PulseSensor Playground functions.
 */
 PulseSensorPlayground pulseSensor;
+
+/*
+  Setup the things we need for driving the Speaker
+  NOTE: Speaker MUST be AC coupled! Connect PIN_SPEAKER to red speaker wire.
+        Then connect black speaker wire to + side of electrolytic capacitor.
+        Then connect - side of electrolytic capacitor to GND.
+        Capacitor value should be 1uF or higher!
+        Follow this tutorial:
+        [link]
+*/
+const int PIN_SPEAKER = 2;    // speaker on pin2 makes a beep with heartbeat
+
 
 void setup() {
   /*
@@ -72,13 +89,14 @@ void setup() {
   Serial.begin(115200);
 
   // Configure the PulseSensor manager.
-  
-  pulseSensor.analogInput(PIN_INPUT);
-  pulseSensor.blinkOnPulse(PIN_BLINK);
-  pulseSensor.fadeOnPulse(PIN_FADE);
-  
+
+  pulseSensor.analogInput(PULSE_INPUT);
+  pulseSensor.blinkOnPulse(PULSE_BLINK);
+  pulseSensor.fadeOnPulse(PULSE_FADE);
+
   pulseSensor.setSerial(Serial);
   pulseSensor.setOutputType(OUTPUT_TYPE);
+  pulseSensor.setThreshold(THRESHOLD);
 
   // Now that everything is ready, start reading the PulseSensor signal.
   if (!pulseSensor.begin()) {
@@ -87,14 +105,14 @@ void setup() {
        likely because our particular Arduino platform interrupts
        aren't supported yet.
 
-       If your Sketch hangs here, try ProcessEverySample.ino,
+       If your Sketch hangs here, try changing USE_ARDUINO_INTERRUPTS to false.
        which doesn't use interrupts.
     */
     for(;;) {
       // Flash the led to show things didn't work.
-      digitalWrite(PIN_BLINK, LOW);
+      digitalWrite(PULSE_BLINK, LOW);
       delay(50);
-      digitalWrite(PIN_BLINK, HIGH);
+      digitalWrite(PULSE_BLINK, HIGH);
       delay(50);
     }
   }
@@ -114,8 +132,20 @@ void loop() {
   /*
      If a beat has happened since we last checked,
      write the per-beat information to Serial.
+     write a frequency to the PIN_SPEAKER
+     NOTE: Do not set the optional duration of tone! That is blocking!
    */
   if (pulseSensor.sawStartOfBeat()) {
     pulseSensor.outputBeat();
+    tone(PIN_SPEAKER,1047);              // tone(pin,frequency)
   }
+
+  /*
+    The Pulse variable is true only for a short time after the heartbeat is detected
+    Use this to time the duration of the beep
+  */
+  if(pulseSensor.isInsideBeat() == false){
+    noTone(PIN_SPEAKER);
+  }
+
 }
